@@ -1,0 +1,32 @@
+{
+  "name": "핀볼·대포 추첨게임",
+  "short_name": "추첨게임",
+  "description": "핀볼 추첨과 대포뽑기로 당첨자를 뽑는 추첨 게임 · made by 천군",
+  "lang": "ko",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#12112a",
+  "theme_color": "#12112a",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
