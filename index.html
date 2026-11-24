@@ -6,7 +6,7 @@
 <meta name="author" content="천군">
 <meta name="description" content="핀볼 추첨과 대포뽑기로 당첨자를 뽑는 추첨 게임 · made by 천군">
 <meta name="theme-color" content="#12112a">
-<meta name="generator" content="천군 추첨게임 1.1.0">
+<meta name="generator" content="천군 추첨게임 1.2.0">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -416,6 +416,7 @@ canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block
           <button type="button" data-speed="3" aria-pressed="false">3배</button>
         </div>
         <label class="check"><input type="checkbox" id="slowmo" checked> 결승 직전 긴장감 연출 (슬로모션·확대)</label>
+        <label class="check"><input type="checkbox" id="gateOn" checked> 운명의 문 (결승 앞에 모였다가 잠깐씩 열리는 문)</label>
       </div>
     </fieldset>
 
@@ -823,7 +824,9 @@ canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block
   let trailOwner = null;
   let countT = 0, lastCount = 4, goT = 0;          // 3-2-1 start countdown
   let heartT = 0, beatPulse = 0, lastTickQ = -1;   // heartbeat + gate ticking
-  let calm = 0, slowAge = 0;                                    // 0..1, how far 2x/3x has eased back to 1x for the finale
+  let calm = 0, slowAge = 0;
+  let gateOn = true;                               // the timed gate before the finish can be switched off
+  const liveGate = () => (gateOn ? map.gate : null);                                    // 0..1, how far 2x/3x has eased back to 1x for the finale
   let viewTop = 0, viewBot = 0;                    // world rows on screen, so only visible hits make noise
   const cam = { x: W / 2, y: 0, z: 1, mode: 'auto' };
   let cw = 0, ch = 0, dpr = 1, wide = true;
@@ -1036,6 +1039,7 @@ canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block
             hitCapsule(m, o.xa, py + o.ya, o.xb, py + o.yb, 5, 0, 0, 0, 0, 0, -o.speed);
           }
         } else {
+          if (o.gate && !gateOn) continue;
           const dx = m.x - o.x, dy = m.y - o.y;
           if (dx * dx + dy * dy > o.reach * o.reach) continue;
           for (let a = 0; a < o.arms; a++) {
@@ -1122,29 +1126,31 @@ canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block
     // Tension builds only while the very next marble to finish decides the winner.
     // Phase 1, waiting at the gate: lights dim, the clock keeps normal time.
     // Phase 2, through the gate: a short, deep slow-motion run to the line.
-    let tTarget = 0, slowZone = false, calmTarget = 0;
+    let tTarget = 0, slowZone = false, calmTarget = 0, rawT = 0;
     if (slowmoOn && state === 'running' && focus && results.length === targetRank() - 1) {
       focusDist = map.goalY - focus.y;
       const waiting = waitingAtGate(focus);
-      slowZone = !map.gate || focus.y >= map.gate.y;
+      const lg = liveGate();
+      slowZone = !lg || focus.y >= lg.y;
       if (waiting) { tTarget = 0.4; calmTarget = 1; }
       else if (slowZone) {
-        const range = map.gate ? map.goalY - map.gate.y + 30 : tensionRange();
+        const range = lg ? map.goalY - lg.y + 30 : tensionRange();
         const x = 1 - Math.min(1, Math.max(0, focusDist) / range);
-        tTarget = (map.gate ? 0.35 + 0.6 * x * x * (3 - 2 * x) : x * x * (3 - 2 * x));
+        tTarget = (lg ? 0.35 + 0.6 * x * x * (3 - 2 * x) : x * x * (3 - 2 * x));
         // a rival right behind keeps it tense; a lone marble eases off a little
         const rival = active.some((o) => o !== focus && focus.y - o.y < 110);
         tTarget *= rival ? 1 : 0.85;
         // a marble that is pinned or resting shouldn't freeze the whole show
         tTarget *= 0.35 + 0.65 * Math.min(1, Math.hypot(focus.vx, focus.vy) / 160);
-        // keep the slow-motion short: if the marble dawdles (bumper ping-pong), ease off after ~2.5 s
+        // keep the deep slow-motion short: if the marble dawdles (bumper ping-pong), ease off after ~2.5 s
+        rawT = tTarget;
         tTarget *= Math.max(0.25, 1 - Math.max(0, slowAge - 2.5) / 1.5);
         tTarget = Math.min(0.92, tTarget);
         calmTarget = 1;
       }
     }
     calm += (calmTarget - calm) * Math.min(1, dt * 4);
-    slowAge = slowZone && tTarget > 0 ? slowAge + dt : 0;
+    slowAge = slowZone && rawT > 0.45 ? slowAge + dt : 0;
     if (hitStop > 0) { hitStop -= dt; flash = Math.max(0, flash - dt * 2.2); }
     else {
       tension += (tTarget - tension) * Math.min(1, dt * (tTarget > tension ? 5 : 1.5));
@@ -1336,7 +1342,7 @@ canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block
         ctx.beginPath(); ctx.moveTo(620, yt); ctx.lineTo(480, yi); ctx.lineTo(480, map.H); ctx.lineTo(620, map.H); ctx.closePath(); ctx.fill();
       }
       const g = map.gate;
-      if (g.y > y0 && g.y - 120 < y1) {
+      if (gateOn && g.y > y0 && g.y - 120 < y1) {
         ctx.fillStyle = C.hot; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.font = '400 15px ' + T('--font-display');
         ctx.fillText('운명의 문', g.x, g.y - 118);
@@ -1406,7 +1412,7 @@ canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block
     }
     // spinners
     for (const sp of map.spinners) {
-      if (sp.y + sp.half < y0 || sp.y - sp.half > y1) continue;
+      if ((sp.gate && !gateOn) || sp.y + sp.half < y0 || sp.y - sp.half > y1) continue;
       for (let a = 0; a < sp.arms; a++) {
         const th = sp.ang + a * Math.PI / sp.arms;
         const c = Math.cos(th) * sp.half, s = Math.sin(th) * sp.half;
@@ -1605,7 +1611,10 @@ canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block
     ctx.fillStyle = C.rod;
     for (const l of map.lifts) for (const py of l.p) ctx.fillRect(Math.min(l.xa, l.xb), py - 8, Math.abs(l.xb - l.xa), 16);
     ctx.strokeStyle = C.rod; ctx.lineWidth = 14;
-    for (const sp of map.spinners) { ctx.beginPath(); ctx.arc(sp.x, sp.y, sp.half, 0, 6.2832); ctx.stroke(); }
+    for (const sp of map.spinners) {
+      if (sp.gate && !gateOn) continue;
+      ctx.beginPath(); ctx.arc(sp.x, sp.y, sp.half, 0, 6.2832); ctx.stroke();
+    }
     ctx.fillStyle = C.fg; ctx.fillRect(20, map.goalY, 600, 20);
     const list = state === 'idle' ? marbles : active;
     for (const m of list) { ctx.fillStyle = m.color; ctx.fillRect(m.x - 14, m.y - 14, 28, 28); }
@@ -1730,13 +1739,14 @@ canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block
   }
 
   function gateInfo() {
-    const g = map.gate;
+    const g = liveGate();
     if (!g) return null;
     const n = Math.floor(simTime / g.period), ph = simTime - n * g.period;
     return { n, closed: ph < g.hold, rem: g.hold - ph };
   }
   function waitingAtGate(m) {
-    return !!(m && map.gate && m.y > map.gate.basinTop + 40 && m.y < map.gate.y + 4);
+    const g = liveGate();
+    return !!(m && g && m.y > g.basinTop + 40 && m.y < g.y + 4);
   }
 
   function resetRace() {
@@ -1750,7 +1760,7 @@ canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block
   function save() {
     try {
       localStorage.setItem('pinball-lottery', JSON.stringify({
-        names: namesEl.value, rule, customRank, map: map.id, speed, slowmoOn, soundOn,
+        names: namesEl.value, rule, customRank, map: map.id, speed, slowmoOn, soundOn, gateOn,
         game, cmode: cs.mode, cmax: cs.max, cburst: cs.burst, crepeat: cs.repeat,
       }));
     } catch (e) { /* storage unavailable */ }
@@ -1788,6 +1798,7 @@ canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block
     speed = Number(b.dataset.speed); setPressed('#speedSeg', 'speed', speed); save();
   });
   $('#slowmo').addEventListener('change', (e) => { slowmoOn = e.target.checked; save(); });
+  $('#gateOn').addEventListener('change', (e) => { gateOn = e.target.checked; save(); });
   startBtn.addEventListener('click', startRace);
   shuffleBtn.addEventListener('click', () => { if (state === 'idle') setup(); });
   shakeBtn.addEventListener('click', shakeAll);
@@ -2404,6 +2415,7 @@ canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block
     if (saved.customRank) customRank = saved.customRank | 0 || 3;
     if ([1, 2, 3].includes(saved.speed)) speed = saved.speed;
     if (typeof saved.slowmoOn === 'boolean') slowmoOn = saved.slowmoOn;
+    if (typeof saved.gateOn === 'boolean') gateOn = saved.gateOn;
     if (typeof saved.soundOn === 'boolean') soundOn = saved.soundOn;
     if (['valley', 'starlight', 'pinwheel', 'bubble', 'well', 'galaxy'].includes(saved.map)) map = makeMap(saved.map);
   }
@@ -2413,6 +2425,7 @@ canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block
   $('#rank').value = customRank;
   $('#map').value = map.id;
   $('#slowmo').checked = slowmoOn;
+  $('#gateOn').checked = gateOn;
   if (saved) {
     if (saved.cmode === 'names' || saved.cmode === 'number') cs.mode = saved.cmode;
     if (Number.isInteger(saved.cmax)) cs.max = saved.cmax;
