@@ -1,5 +1,5 @@
 // 천군 추첨게임 service worker: works offline after the first visit
-const CACHE = 'chungun-draw-v1.0.0';
+const CACHE = 'chungun-draw-v1.1.0';
 const CORE = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png',
   './icons/icon-maskable-512.png', './icons/apple-touch-icon.png'];
 

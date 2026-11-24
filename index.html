@@ -6,7 +6,7 @@
 <meta name="author" content="천군">
 <meta name="description" content="핀볼 추첨과 대포뽑기로 당첨자를 뽑는 추첨 게임 · made by 천군">
 <meta name="theme-color" content="#12112a">
-<meta name="generator" content="천군 추첨게임 1.0.0">
+<meta name="generator" content="천군 추첨게임 1.1.0">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -401,6 +401,10 @@ canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block
         <select id="map">
           <option value="valley">폭포 계곡 · 핀, 경사로, 회전 막대 (28.3m)</option>
           <option value="starlight">별빛 범퍼 · 범퍼 튕기기 (21.1m)</option>
+          <option value="pinwheel">바람개비 협곡 · 줄지어 도는 날개 (19.1m)</option>
+          <option value="bubble">비눗방울 터널 · 맞으면 터지는 방울 (18.2m)</option>
+          <option value="well">두레박 우물 · 빠졌다가 승강기로 탈출 (14.5m)</option>
+          <option value="galaxy">은하수 대장정 · 과녁 고리, 가장 긴 코스 (29.7m)</option>
         </select>
       </div>
 
@@ -617,6 +621,8 @@ canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block
       droneOsc.frequency.setTargetAtTime(48 + 40 * k, t, 0.2);
       droneFilter.frequency.setTargetAtTime(200 + 900 * k, t, 0.2);
     };
+    api.bubble = () => { if (ready('bubble', 0.05)) tone(700 + Math.random() * 200, 0.08, 0.05, 'sine', 1100); };
+    api.pop = () => { if (!ready('pop', 0.05)) return; tone(900, 0.09, 0.09, 'sine', 2000); hiss(3200, 1, 0.06, 0.08); };
     // cannon draw
     api.boom = () => {
       if (!ready('boom', 0.1)) return;
@@ -659,10 +665,11 @@ canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block
 
   // ---------- maps ----------
   function makeMap(id) {
-    const m = { id, segs: [], pegs: [], bumpers: [], spinners: [], H: 0, goalY: 0, spawnBottom: 340 };
+    const m = { id, segs: [], pegs: [], bumpers: [], spinners: [], lifts: [], dead: [], H: 0, goalY: 0, spawnBottom: 340 };
     const seg = (ax, ay, bx, by, r = 6) => m.segs.push({ ax, ay, bx, by, r });
     const peg = (x, y, r = 6) => m.pegs.push({ x, y, r });
-    const bump = (x, y, r = 20) => m.bumpers.push({ x, y, r, flash: 0 });
+    // life > 0 makes a bubble that pops after that many hits
+    const bump = (x, y, r = 20, life = 0) => m.bumpers.push({ x, y, r, flash: 0, life, life0: life, dead: false });
     const spin = (x, y, half, w, arms = 1, a0 = 0) => m.spinners.push({ x, y, half, w, arms, a0, ang: a0, r: 6 });
     const pegRows = (y0, rows, dy, dx, x0, x1, r = 6) => {
       for (let i = 0; i < rows; i++) {
@@ -688,7 +695,64 @@ canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block
       m.finishX = [166, 474];
     };
 
-    if (id === 'starlight') {
+    if (id === 'pinwheel') {
+      // 바람개비 협곡: zigzag ledges, then three rows of paddles turning in alternate directions
+      pegRows(400, 6, 50, 70, 70, 570, 6);
+      seg(20, 720, 420, 800); bump(560, 790, 16);
+      seg(620, 860, 220, 940);
+      [[1030, [130, 320, 510], 2.6], [1180, [225, 415], -3.0], [1330, [130, 320, 510], -2.6]]
+        .forEach(([y, xs, w], r) => xs.forEach((x, i) => spin(x, y, 72, i % 2 ? -w : w, 1, r * 0.5 + i)));
+      seg(20, 1430, 400, 1500); seg(620, 1560, 240, 1630);
+      spin(320, 1720, 110, 1.2, 1);
+      finale(1820);
+    } else if (id === 'bubble') {
+      // 비눗방울 터널: a narrow lane packed with bubbles that pop after 1-3 hits
+      seg(20, 380, 150, 470); seg(620, 380, 490, 470);
+      seg(150, 470, 150, 1730); seg(490, 470, 490, 1730);
+      m.dead.push([[20, 380], [150, 470], [150, 1730], [20, 1730]], [[620, 380], [490, 470], [490, 1730], [620, 1730]]);
+      spin(250, 560, 50, 3, 1); spin(390, 560, 50, -3, 1);
+      [[690, [220, 320, 420]], [760, [270, 370]], [830, [220, 320, 420]]].forEach(([y, xs]) => xs.forEach((x) => bump(x, y, 18, 2)));
+      peg(240, 950, 30); peg(400, 950, 30);
+      spin(250, 1080, 50, 2.4, 1, 0.6); spin(390, 1080, 50, -2.4, 1, -0.6);
+      [[1200, [200, 280, 360, 440], 1], [1270, [240, 320, 400], 2], [1340, [200, 280, 360, 440], 3]]
+        .forEach(([y, xs, l]) => xs.forEach((x) => bump(x, y, 16, l)));
+      spin(320, 1500, 90, 2, 2);
+      [220, 320, 420].forEach((x) => bump(x, 1650, 18, 3));
+      finale(1730);
+    } else if (id === 'well') {
+      // 두레박 우물: everyone drops into a well; lifts in the two shafts carry marbles up and over the rim
+      pegRows(400, 5, 50, 64, 70, 570, 6);
+      spin(200, 700, 70, 2.5, 1); spin(440, 700, 70, -2.5, 1);
+      seg(20, 820, 190, 900); seg(620, 820, 450, 900);
+      seg(150, 970, 150, 1300); seg(490, 970, 490, 1300);
+      seg(150, 1300, 236, 1300); seg(404, 1300, 490, 1300);
+      seg(320, 1220, 236, 1290); seg(320, 1220, 404, 1290);
+      m.lifts.push({ xa: 158, xb: 228, ya: 0, yb: -20, yTop: 920, yBot: 1296, speed: 75, n: 3, phase: 0, p: [] });
+      m.lifts.push({ xa: 412, xb: 482, ya: -20, yb: 0, yTop: 920, yBot: 1296, speed: 75, n: 3, phase: 60, p: [] });
+      finale(1360);
+    } else if (id === 'galaxy') {
+      // 은하수 대장정: the long haul through five zones, with a target of bubble rings in the middle
+      pegRows(400, 6, 50, 56, 60, 580, 6);
+      [130, 260, 380, 510].forEach((x) => bump(x, 730, 16));
+      spin(200, 870, 80, 2.6, 1); spin(440, 870, 80, -2.6, 1);
+      spin(200, 1060, 80, -2.6, 1, 0.8); spin(440, 1060, 80, 2.6, 1, 0.8);
+      [110, 320, 530].forEach((x) => bump(x, 1170, 18));
+      const cx = 320, cy = 1480;
+      peg(cx, cy, 16);
+      [[70, 6, 3], [150, 10, 2], [230, 14, 1]].forEach(([rad, n, life], ri) => {
+        for (let k = 0; k < n; k++) {
+          const a = (k / n) * Math.PI * 2 + ri * 0.3;
+          bump(cx + Math.cos(a) * rad, cy + Math.sin(a) * rad, 14, life);
+        }
+      });
+      spin(180, 1870, 70, 2.2, 1, 0.5); spin(460, 1870, 70, -2.2, 1, -0.5);
+      spin(320, 2020, 90, 1.8, 1);
+      spin(170, 2150, 70, -2.4, 1); spin(470, 2150, 70, 2.4, 1);
+      [90, 200, 320, 440, 550].forEach((x) => bump(x, 2270, 14));
+      spin(180, 2440, 110, 1.1, 1); spin(460, 2440, 110, -1.1, 1);
+      seg(20, 2580, 440, 2660); seg(620, 2720, 200, 2800);
+      finale(2880);
+    } else if (id === 'starlight') {
       [[440, [120, 250, 390, 520]], [560, [185, 320, 455]], [680, [120, 250, 390, 520]], [800, [185, 320, 455]]]
         .forEach(([y, xs]) => xs.forEach((x) => bump(x, y, 22)));
       peg(40, 620, 7); peg(600, 620, 7); peg(40, 860, 7); peg(600, 860, 7);
@@ -739,6 +803,7 @@ canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block
     }
     for (const p of m.pegs) { p.t = 1; add(p, p.y - p.r - pad, p.y + p.r + pad); }
     for (const b of m.bumpers) { b.t = 2; add(b, b.y - b.r - pad, b.y + b.r + pad); }
+    for (const l of m.lifts) { l.t = 4; l.x0 = Math.min(l.xa, l.xb) - 20; l.x1 = Math.max(l.xa, l.xb) + 20; add(l, l.yTop - 40, l.yBot + 40); }
     for (const sp of m.spinners) { sp.t = 3; sp.reach = sp.half + sp.r + R; add(sp, sp.y - sp.reach - 2, sp.y + sp.reach + 2); }
   }
 
@@ -815,7 +880,8 @@ canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block
     winner = null; winnerShown = false;
     tension = 0; hitStop = 0; flash = 0; photoFinish = false; calm = 0;
     simTime = 0; acc = 0;
-    for (const b of map.bumpers) b.flash = 0;
+    for (const b of map.bumpers) { b.flash = 0; b.life = b.life0; b.dead = false; }
+    updateLifts();
     for (const sp of map.spinners) sp.ang = sp.a0;
     sparks.length = 0; confetti.length = 0;
     cam.mode = 'auto'; followBtn.hidden = true;
@@ -831,7 +897,7 @@ canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block
   }
 
   // ---------- physics ----------
-  function hitCapsule(m, ax, ay, bx, by, rr, e, cx, cy, w) {
+  function hitCapsule(m, ax, ay, bx, by, rr, e, cx, cy, w, ux0 = 0, uy0 = 0) {
     const dx = bx - ax, dy = by - ay;
     const l2 = dx * dx + dy * dy;
     let t = l2 > 0 ? ((m.x - ax) * dx + (m.y - ay) * dy) / l2 : 0;
@@ -844,7 +910,7 @@ canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block
     let d = Math.sqrt(d2);
     if (d < 1e-6) { nx = 0; ny = -1; d = 0; } else { nx /= d; ny /= d; }
     m.x += nx * (md - d); m.y += ny * (md - d);
-    let ux = 0, uy = 0;
+    let ux = ux0, uy = uy0;
     if (w) { ux = -w * (py - cy); uy = w * (px - cx); }
     let rvx = m.vx - ux, rvy = m.vy - uy;
     const vn = rvx * nx + rvy * ny;
@@ -860,6 +926,7 @@ canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block
   }
 
   function hitBumper(m, b) {
+    if (b.dead) return;
     const dx = m.x - b.x, dy = m.y - b.y, md = R + b.r, d2 = dx * dx + dy * dy;
     if (d2 >= md * md) return;
     let d = Math.sqrt(d2), nx, ny;
@@ -871,12 +938,34 @@ canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block
       const out = Math.max(-vn * 0.7, 360 + Math.random() * 60);
       m.vx += out * nx; m.vy += out * ny;
       b.flash = 1;
-      if (m.y > viewTop && m.y < viewBot) Sfx.bumper();
+      const heard = m.y > viewTop && m.y < viewBot;
+      if (b.life0) {
+        b.life -= 1;
+        if (b.life <= 0) {
+          b.dead = true;
+          for (let i = 0; i < 14; i++) {
+            const a = Math.random() * 6.2832, v = 80 + Math.random() * 160;
+            sparks.push({ x: b.x + Math.cos(a) * b.r, y: b.y + Math.sin(a) * b.r, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 0.5, max: 0.5, color: C.rod });
+          }
+          if (heard) Sfx.pop();
+        } else if (heard) Sfx.bubble();
+      } else if (heard) Sfx.bumper();
+    }
+  }
+
+  // lift platforms ride up their shaft and wrap back to the bottom
+  function updateLifts() {
+    for (const l of map.lifts) {
+      const range = l.yBot - l.yTop;
+      for (let k = 0; k < l.n; k++) {
+        l.p[k] = l.yBot - (((l.speed * simTime + (k * range) / l.n + l.phase) % range) + range) % range;
+      }
     }
   }
 
   function physicsStep(h) {
     simTime += h;
+    if (map.lifts.length) updateLifts();
     for (const sp of map.spinners) {
       const g = sp.gate;
       if (!g) { sp.ang = sp.a0 + sp.w * simTime; continue; }
@@ -940,6 +1029,12 @@ canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block
           }
         } else if (o.t === 2) {
           hitBumper(m, o);
+        } else if (o.t === 4) {
+          if (m.x < o.x0 || m.x > o.x1) continue;
+          for (const py of o.p) {
+            if (Math.abs(m.y - py) > 40) continue;
+            hitCapsule(m, o.xa, py + o.ya, o.xb, py + o.yb, 5, 0, 0, 0, 0, 0, -o.speed);
+          }
         } else {
           const dx = m.x - o.x, dy = m.y - o.y;
           if (dx * dx + dy * dy > o.reach * o.reach) continue;
@@ -1223,6 +1318,15 @@ canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block
       ctx.fillStyle = C.muted; ctx.textAlign = 'left'; ctx.font = '700 11px ' + T('--font-body');
       ctx.fillText('출발선', 30, map.spawnBottom + 28);
     }
+    // cabinet areas a course walls off
+    if (map.dead.length) {
+      ctx.fillStyle = C.bg;
+      for (const poly of map.dead) {
+        ctx.beginPath(); ctx.moveTo(poly[0][0], poly[0][1]);
+        for (let i = 1; i < poly.length; i++) ctx.lineTo(poly[i][0], poly[i][1]);
+        ctx.closePath(); ctx.fill();
+      }
+    }
     // the dead space beside the final lane is cabinet, not felt
     if (map.gate) {
       const yt = map.gate.basinTop, yi = yt + 106;
@@ -1270,7 +1374,23 @@ canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block
     }
     // bumpers
     for (const b of map.bumpers) {
-      if (b.y + b.r < y0 || b.y - b.r > y1) continue;
+      if (b.dead || b.y + b.r < y0 || b.y - b.r > y1) continue;
+      if (b.life0) {
+        // bubble: one ring per hit it can still take
+        ctx.globalAlpha = 0.2 + 0.3 * b.flash;
+        ctx.fillStyle = C.rod; ctx.beginPath(); ctx.arc(b.x, b.y, b.r + 3 * b.flash, 0, 6.2832); ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = C.rod;
+        for (let i = 0; i < b.life; i++) {
+          ctx.lineWidth = i ? 1.2 : 2;
+          ctx.globalAlpha = i ? 0.6 : 1;
+          ctx.beginPath(); ctx.arc(b.x, b.y, b.r - 1 - i * 4, 0, 6.2832); ctx.stroke();
+        }
+        ctx.globalAlpha = 0.6; ctx.fillStyle = C.fg;
+        ctx.beginPath(); ctx.arc(b.x - b.r * 0.35, b.y - b.r * 0.4, b.r * 0.22, 0, 6.2832); ctx.fill();
+        ctx.globalAlpha = 1;
+        continue;
+      }
       ctx.fillStyle = C.cabinet;
       ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, 6.2832); ctx.fill();
       ctx.lineWidth = 4; ctx.strokeStyle = C.hot;
@@ -1303,6 +1423,20 @@ canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block
       ctx.beginPath(); ctx.arc(sp.x, sp.y, 7, 0, 6.2832); ctx.fill();
       ctx.strokeStyle = sp.gate ? C.hot : C.rod; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(sp.x, sp.y, 7, 0, 6.2832); ctx.stroke();
+    }
+    // lifts: a faint shaft and its platforms
+    for (const l of map.lifts) {
+      if (l.yBot < y0 || l.yTop > y1) continue;
+      ctx.globalAlpha = 0.25; ctx.fillStyle = C.line;
+      ctx.fillRect(Math.min(l.xa, l.xb), l.yTop - 20, Math.abs(l.xb - l.xa), l.yBot - l.yTop + 20);
+      ctx.globalAlpha = 1;
+      ctx.lineCap = 'round';
+      for (const py of l.p) {
+        ctx.strokeStyle = C.rod; ctx.lineWidth = 10;
+        ctx.beginPath(); ctx.moveTo(l.xa, py + l.ya); ctx.lineTo(l.xb, py + l.yb); ctx.stroke();
+        ctx.fillStyle = C.bg;
+        ctx.beginPath(); ctx.arc((l.xa + l.xb) / 2, py + (l.ya + l.yb) / 2, 2.5, 0, 6.2832); ctx.fill();
+      }
     }
     // marbles
     const list = state === 'idle' ? marbles : active;
@@ -1463,7 +1597,13 @@ canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block
     ctx.fillStyle = C.brass;
     for (const p of map.pegs) ctx.fillRect(p.x - 6, p.y - 6, 12, 12);
     ctx.fillStyle = C.hot;
-    for (const b of map.bumpers) { ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, 6.2832); ctx.fill(); }
+    for (const b of map.bumpers) {
+      if (b.dead) continue;
+      ctx.fillStyle = b.life0 ? C.rod : C.hot;
+      ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, 6.2832); ctx.fill();
+    }
+    ctx.fillStyle = C.rod;
+    for (const l of map.lifts) for (const py of l.p) ctx.fillRect(Math.min(l.xa, l.xb), py - 8, Math.abs(l.xb - l.xa), 16);
     ctx.strokeStyle = C.rod; ctx.lineWidth = 14;
     for (const sp of map.spinners) { ctx.beginPath(); ctx.arc(sp.x, sp.y, sp.half, 0, 6.2832); ctx.stroke(); }
     ctx.fillStyle = C.fg; ctx.fillRect(20, map.goalY, 600, 20);
@@ -2265,7 +2405,7 @@ canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block
     if ([1, 2, 3].includes(saved.speed)) speed = saved.speed;
     if (typeof saved.slowmoOn === 'boolean') slowmoOn = saved.slowmoOn;
     if (typeof saved.soundOn === 'boolean') soundOn = saved.soundOn;
-    if (saved.map === 'starlight' || saved.map === 'valley') map = makeMap(saved.map);
+    if (['valley', 'starlight', 'pinwheel', 'bubble', 'well', 'galaxy'].includes(saved.map)) map = makeMap(saved.map);
   }
   setPressed('#ruleSeg', 'rule', rule);
   setPressed('#speedSeg', 'speed', speed);
